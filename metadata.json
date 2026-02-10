@@ -1,0 +1,9 @@
+
+{
+  "name": "Smart AI Diary",
+  "description": "A feature-rich diary application with AI-powered daily summaries, todo tracking, expense management, and a versatile calendar view.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
