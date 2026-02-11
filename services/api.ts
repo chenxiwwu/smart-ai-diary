@@ -1,4 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// 后端服务器根路径（用于拼接 /uploads/xxx 等相对路径）
+export const SERVER_BASE = API_BASE.replace(/\/api\/?$/, '');
 
 export interface User {
   id: string;
@@ -129,17 +131,21 @@ class ApiService {
   }
 
   // AI
-  async generateSummary(date: string): Promise<{ summary: string }> {
+  async generateSummary(entry: { todos: any[]; expenses: any[]; insight: string }): Promise<{ summary: string }> {
     return this.request<{ summary: string }>('/ai/summary', {
       method: 'POST',
-      body: JSON.stringify({ date }),
+      body: JSON.stringify({
+        todos: entry.todos,
+        expenses: entry.expenses,
+        insight: entry.insight,
+      }),
     });
   }
 
-  async generateInsight(date: string, prompt: string): Promise<{ insight: string }> {
+  async generateInsight(entryInsight: string, prompt: string): Promise<{ insight: string }> {
     return this.request<{ insight: string }>('/ai/insight', {
       method: 'POST',
-      body: JSON.stringify({ date, prompt }),
+      body: JSON.stringify({ entryInsight, prompt }),
     });
   }
 

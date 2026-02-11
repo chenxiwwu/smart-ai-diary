@@ -5,9 +5,10 @@ import { DayEntry } from '../types';
 interface ExportModalProps {
   entries: Record<string, DayEntry>;
   onClose: () => void;
+  userName?: string;
 }
 
-const ExportModal: React.FC<ExportModalProps> = ({ entries, onClose }) => {
+const ExportModal: React.FC<ExportModalProps> = ({ entries, onClose, userName }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -29,114 +30,283 @@ const ExportModal: React.FC<ExportModalProps> = ({ entries, onClose }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    const displayName = userName || 'My';
+
     const content = `
       <!DOCTYPE html>
       <html lang="zh-CN">
       <head>
         <meta charset="UTF-8">
         <title>我的日记导出 - ${startDate} 至 ${endDate}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
-          @media print {
-            .page-break { page-break-after: always; }
-            body { background: white; -webkit-print-color-adjust: exact; }
+          @page {
+            size: A4;
+            margin: 18mm 16mm 18mm 16mm;
           }
-          body { font-family: sans-serif; padding: 40px; }
-          .font-serif-display { font-family: 'Playfair Display', serif; }
-          .entry-card { margin-bottom: 80px; page-break-inside: avoid; border-bottom: 1px solid #f1f5f9; padding-bottom: 80px; }
-          .entry-card:last-child { border-bottom: none; }
-          img { max-width: 100%; height: auto; display: block; }
+          @media print {
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .cover-page { page-break-after: always; }
+          }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Noto Serif SC', 'STSong', 'SimSun', serif;
+            font-size: 10pt;
+            line-height: 1.75;
+            color: #2a2a2a;
+            background: white;
+          }
+          .book-container { max-width: 680px; margin: 0 auto; padding: 0; }
+
+          /* 封面页 */
+          .cover-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+            text-align: center;
+            padding: 60px 40px;
+          }
+          .cover-line {
+            width: 50px;
+            height: 3px;
+            background: #c05621;
+            margin: 0 auto 32px;
+          }
+          .cover-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 14pt;
+            font-weight: 400;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 16px;
+          }
+          .cover-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 32pt;
+            font-weight: 900;
+            color: #111;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+          }
+          .cover-subtitle {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 11pt;
+            color: #888;
+            font-weight: 400;
+            margin-bottom: 40px;
+          }
+          .cover-date-range {
+            font-family: 'Playfair Display', serif;
+            font-size: 9pt;
+            color: #bbb;
+            letter-spacing: 3px;
+          }
+          .cover-line-bottom {
+            width: 50px;
+            height: 3px;
+            background: #c05621;
+            margin: 32px auto 0;
+          }
+
+          /* 每日条目 */
+          .entry {
+            margin-bottom: 8px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #eaeaea;
+            page-break-inside: avoid;
+          }
+          .entry:last-child { border-bottom: none; }
+
+          .entry-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            padding-top: 10px;
+          }
+          .entry-date {
+            font-family: 'Playfair Display', serif;
+            font-size: 15pt;
+            font-weight: 900;
+            color: #111;
+          }
+          .entry-myday {
+            font-size: 9pt;
+            color: #c05621;
+            font-style: italic;
+            font-weight: 600;
+          }
+          .entry-summary {
+            font-size: 8.5pt;
+            color: #888;
+            font-style: italic;
+            margin-top: 2px;
+          }
+
+          /* 感悟正文 */
+          .entry-insight {
+            font-size: 10pt;
+            line-height: 1.85;
+            color: #333;
+            margin-bottom: 8px;
+            text-align: left;
+          }
+
+          /* 图片网格 */
+          .entry-images {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+          }
+          .entry-images img {
+            height: 80px;
+            width: auto;
+            border-radius: 4px;
+            object-fit: cover;
+            border: 1px solid #eee;
+          }
+
+          /* Todo 和支出并排 */
+          .entry-meta {
+            display: flex;
+            gap: 24px;
+            font-size: 8.5pt;
+            color: #666;
+            margin-top: 6px;
+          }
+          .meta-section { flex: 1; }
+          .meta-label {
+            font-size: 7pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #aaa;
+            margin-bottom: 3px;
+          }
+          .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            line-height: 1.6;
+          }
+          .todo-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+          }
+          .todo-dot.done { background: #c05621; }
+          .todo-dot.undone { background: #ddd; }
+          .todo-text.done { text-decoration: line-through; color: #bbb; }
+
+          .expense-row {
+            display: flex;
+            justify-content: space-between;
+            line-height: 1.6;
+          }
+          .expense-total {
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #eee;
+            margin-top: 2px;
+            padding-top: 2px;
+            font-weight: 700;
+            color: #4338ca;
+            font-size: 8.5pt;
+          }
+
+          /* 页脚 */
+          .book-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 12px;
+            border-top: 1px solid #e8e8e8;
+            font-size: 7pt;
+            color: #ccc;
+            letter-spacing: 2px;
+          }
         </style>
       </head>
-      <body class="bg-white">
-        <div class="max-w-4xl mx-auto">
-          <header class="text-center mb-24 border-b-4 border-gray-900 pb-12">
-            <h1 class="text-7xl font-black mb-4 tracking-tighter text-gray-950 font-serif-display">ARCHIVE</h1>
-            <p class="text-gray-500 uppercase tracking-[0.5em] text-[10px] font-black">
-              TIME RANGE: ${startDate.replace(/-/g, '.')} — ${endDate.replace(/-/g, '.')}
-            </p>
-          </header>
+      <body>
+        <div class="book-container">
+          <!-- 封面 -->
+          <div class="cover-page">
+            <div class="cover-line"></div>
+            <div class="cover-title">Diary</div>
+            <div class="cover-name">${displayName}'s Journal</div>
+            <div class="cover-subtitle">生活的点滴，值得被记住</div>
+            <div class="cover-date-range">
+              ${startDate.replace(/-/g, '.')} — ${endDate.replace(/-/g, '.')}
+            </div>
+            <div class="cover-line-bottom"></div>
+          </div>
 
+          <!-- 日记内容 -->
           ${filteredEntries.map(entry => {
             const images = entry.media?.filter(m => m.type === 'image') || [];
+            const hasContent = entry.insight || images.length > 0 || entry.todos.length > 0 || entry.expenses.length > 0;
+            if (!hasContent && !entry.myDaySummary) return '';
             
             return `
-            <div class="entry-card">
-              <div class="flex justify-between items-baseline mb-12">
-                <h2 class="text-5xl font-black text-gray-950 font-serif-display">${entry.date}</h2>
-                ${entry.myDaySummary ? `<span class="text-orange-600 font-bold italic text-xl font-serif-display">“${entry.myDaySummary}”</span>` : ''}
+            <div class="entry">
+              <div class="entry-header">
+                <div class="entry-date">${entry.date}</div>
+                ${entry.myDaySummary ? `<span class="entry-myday">${entry.myDaySummary}</span>` : ''}
               </div>
 
-              ${entry.insight ? `
-                <div class="text-gray-900 mb-12 text-xl leading-[1.8] font-serif-display border-l-4 border-orange-100 pl-8 py-2">
-                  ${entry.insight}
-                </div>
-              ` : ''}
+              ${entry.insight ? `<div class="entry-insight">${entry.insight}</div>` : ''}
 
               ${images.length > 0 ? `
-                <div class="mb-12">
-                  <h3 class="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-6">Visual Memory</h3>
-                  <div class="grid grid-cols-2 gap-4">
-                    ${images.map(img => `
-                      <div class="rounded-2xl overflow-hidden border border-gray-100 aspect-video">
-                        <img src="${img.url}" class="w-full h-full object-cover" />
-                      </div>
-                    `).join('')}
-                  </div>
+                <div class="entry-images">
+                  ${images.map(img => `<img src="${img.url}" />`).join('')}
                 </div>
               ` : ''}
 
-              <div class="grid grid-cols-2 gap-16">
-                <div>
-                  <h3 class="text-[9px] font-black text-orange-500 uppercase tracking-[0.3em] mb-6">Todo Status</h3>
-                  <ul class="space-y-3">
-                    ${entry.todos.length > 0 
-                      ? entry.todos.map(t => `
-                          <li class="flex items-center gap-3 text-sm font-bold">
-                            <span class="w-3 h-3 rounded-full border border-gray-200 ${t.completed ? 'bg-orange-500 border-orange-600' : 'bg-white'}"></span>
-                            <span class="${t.completed ? 'text-gray-400 line-through' : 'text-gray-800'}">${t.text}</span>
-                          </li>
-                        `).join('')
-                      : '<li class="text-gray-300 text-xs italic">No tasks recorded</li>'
-                    }
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 class="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-6">Financial Summary</h3>
-                  <div class="space-y-3">
-                    ${entry.expenses.length > 0 
-                      ? entry.expenses.map(e => `
-                          <div class="flex justify-between text-sm font-bold">
-                            <span class="text-gray-600">${e.item}</span>
-                            <span class="font-black text-gray-900">¥${e.amount.toFixed(2)}</span>
-                          </div>
-                        `).join('')
-                      : '<div class="text-gray-300 text-xs italic">No financial data</div>'
-                    }
-                    ${entry.expenses.length > 0 ? `
-                      <div class="pt-4 mt-4 border-t border-gray-100 flex justify-between font-black text-indigo-600">
-                        <span class="uppercase tracking-widest text-[10px]">Total Investment</span>
+              ${(entry.todos.length > 0 || entry.expenses.length > 0) ? `
+                <div class="entry-meta">
+                  ${entry.todos.length > 0 ? `
+                    <div class="meta-section">
+                      <div class="meta-label">Todo</div>
+                      ${entry.todos.map(t => `
+                        <div class="todo-item">
+                          <span class="todo-dot ${t.completed ? 'done' : 'undone'}"></span>
+                          <span class="todo-text ${t.completed ? 'done' : ''}">${t.text}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                  ${entry.expenses.length > 0 ? `
+                    <div class="meta-section">
+                      <div class="meta-label">Expenses</div>
+                      ${entry.expenses.map(e => `
+                        <div class="expense-row">
+                          <span>${e.item}</span>
+                          <span>¥${e.amount.toFixed(2)}</span>
+                        </div>
+                      `).join('')}
+                      <div class="expense-total">
+                        <span>Total</span>
                         <span>¥${entry.expenses.reduce((s, e) => s + e.amount, 0).toFixed(2)}</span>
                       </div>
-                    ` : ''}
-                  </div>
+                    </div>
+                  ` : ''}
                 </div>
-              </div>
+              ` : ''}
             </div>
           `}).join('')}
 
-          <footer class="text-center mt-32 text-gray-300 text-[10px] uppercase tracking-[0.5em] font-black py-12 border-t border-gray-50">
-            Smart AI Diary Digital Archive • Generated on ${new Date().toLocaleDateString()}
-          </footer>
+          <div class="book-footer">
+            ${displayName}'s Smart Diary · Generated on ${new Date().toLocaleDateString()}
+          </div>
         </div>
         <script>
           window.onload = () => {
-            // Give images some time to load before printing
-            setTimeout(() => {
-              window.print();
-            }, 500);
+            setTimeout(() => { window.print(); }, 500);
           };
         </script>
       </body>

@@ -107,7 +107,7 @@ export default function Login({ onLogin, onRegister, loading, error }: LoginProp
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm font-medium text-gray-500 hover:text-orange-600 transition-colors"
             >
-              {isLogin ? '还没有账号？' : '已有账号？'} 点击登录
+              {isLogin ? '还没有账号？ 点击注册' : '已有账号？ 点击登录'}
             </button>
           </div>
         </div>

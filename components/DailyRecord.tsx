@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DayEntry, Todo, Expense, MediaFile } from '../types';
 import { generateMyDaySummary } from '../services/geminiService';
+import { api, SERVER_BASE } from '../services/api';
 import MediaPreview from './MediaPreview';
 
 const DAILY_QUOTES = [
@@ -60,6 +61,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
   const [expenseName, setExpenseName] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const formattedDate = new Date(entry.date).toLocaleDateString('zh-CN', {
@@ -108,18 +110,35 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'audio') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'audio') => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const newMedia: MediaFile[] = (Array.from(files) as File[]).map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      type,
-      url: URL.createObjectURL(file),
-      name: file.name
-    }));
-
-    onUpdate({ media: [...entry.media, ...newMedia] });
+    setUploading(true);
+    try {
+      const uploadedMedia: MediaFile[] = [];
+      for (const file of Array.from(files)) {
+        const result = await api.uploadFile(file, entry.date);
+        // 后端返回的 url 是相对路径如 /uploads/xxx，需要拼接服务器地址
+        const fullUrl = result.media.url.startsWith('http')
+          ? result.media.url
+          : `${SERVER_BASE}${result.media.url}`;
+        uploadedMedia.push({
+          id: result.media.id,
+          type: result.media.type,
+          url: fullUrl,
+          name: result.media.name,
+        });
+      }
+      onUpdate({ media: [...entry.media, ...uploadedMedia] });
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('文件上传失败，请确保后端服务正在运行');
+    } finally {
+      setUploading(false);
+      // 重置 input，允许重复选择同一文件
+      e.target.value = '';
+    }
   };
 
   const runAISummary = async () => {
@@ -218,7 +237,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                 onChange={(e) => setTodoInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddTodo()}
                 placeholder="想要完成的事..."
-                className="flex-1 px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-4 focus:ring-orange-50 outline-none transition-all placeholder:text-gray-400 font-medium text-gray-900"
+                className="flex-1 px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-base focus:ring-4 focus:ring-orange-50 outline-none transition-all placeholder:text-gray-400 font-medium text-gray-900 font-serif-display"
               />
               <button 
                 onClick={handleAddTodo} 
@@ -238,7 +257,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                     onChange={() => handleToggleTodo(todo.id)}
                     className="w-5 h-5 text-orange-600 rounded-lg border-gray-300 focus:ring-orange-500 cursor-pointer"
                   />
-                  <span className={`flex-1 text-base font-bold transition-all ${todo.completed ? 'line-through text-gray-400' : 'text-gray-950'}`}>
+                  <span className={`flex-1 text-base font-medium transition-all font-serif-display ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                     {todo.text}
                   </span>
                   <button onClick={() => handleDeleteTodo(todo.id)} className="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-500 transition-all">
@@ -246,7 +265,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                   </button>
                 </div>
               ))}
-              {entry.todos.length === 0 && <p className="text-center text-gray-400 text-xs py-14 font-medium tracking-wide">今天还没有计划呢</p>}
+              {entry.todos.length === 0 && <p className="text-center text-gray-400 text-sm py-14 font-medium tracking-wide font-serif-display">今天还没有计划呢</p>}
             </div>
           </section>
 
@@ -259,7 +278,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                 value={expenseName}
                 onChange={(e) => setExpenseName(e.target.value)}
                 placeholder="内容"
-                className="min-w-0 flex-1 px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-indigo-50 font-medium text-gray-900 placeholder:text-gray-400"
+                className="min-w-0 flex-1 px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-base outline-none focus:ring-4 focus:ring-indigo-50 font-medium text-gray-900 placeholder:text-gray-400 font-serif-display"
               />
               <input 
                 type="number" 
@@ -267,7 +286,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                 onChange={(e) => setExpenseAmount(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddExpense()}
                 placeholder="¥"
-                className="w-20 flex-shrink-0 px-3 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-indigo-50 font-medium text-gray-900 placeholder:text-gray-400"
+                className="w-20 flex-shrink-0 px-3 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-base outline-none focus:ring-4 focus:ring-indigo-50 font-medium text-gray-900 placeholder:text-gray-400 font-serif-display"
               />
               <button 
                 onClick={handleAddExpense} 
@@ -280,10 +299,10 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
             </div>
             <div className="space-y-1">
               {entry.expenses.map(exp => (
-                <div key={exp.id} className="group flex justify-between items-center text-sm py-3 px-3 hover:bg-indigo-50/40 rounded-2xl transition-all">
-                  <span className="text-gray-800 font-bold">{exp.item}</span>
+                <div key={exp.id} className="group flex justify-between items-center text-base py-3 px-3 hover:bg-indigo-50/40 rounded-2xl transition-all font-serif-display">
+                  <span className="text-gray-900 font-medium">{exp.item}</span>
                   <div className="flex items-center gap-4">
-                    <span className="font-black text-gray-950">¥{exp.amount.toFixed(2)}</span>
+                    <span className="font-semibold text-gray-900">¥{exp.amount.toFixed(2)}</span>
                     <button onClick={() => handleDeleteExpense(exp.id)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-indigo-600 transition-all">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -321,14 +340,20 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
                   ))}
                 </div>
                 <div className="w-px h-6 bg-gray-200 mx-1"></div>
-                <label className="w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-xl text-orange-600 cursor-pointer transition-all" title="上传图片">
-                  <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'image')} />
+                <label className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-xl text-orange-600 cursor-pointer transition-all ${uploading ? 'opacity-50 pointer-events-none' : ''}`} title="上传图片">
+                  <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'image')} disabled={uploading} />
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 </label>
-                <label className="w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 cursor-pointer transition-all" title="上传视频">
-                  <input type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, 'video')} />
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2-2v8a2 2 0 002 2z" /></svg>
+                <label className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 cursor-pointer transition-all ${uploading ? 'opacity-50 pointer-events-none' : ''}`} title="上传视频">
+                  <input type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, 'video')} disabled={uploading} />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 </label>
+                {uploading && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs text-orange-600 font-bold">上传中...</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-6 pr-2">
                 {entry.lastSavedAt && (
@@ -349,7 +374,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
               ref={editorRef}
               contentEditable
               onBlur={handleInsightSave}
-              className="flex-1 px-14 py-12 outline-none prose prose-slate max-w-none text-gray-900 text-xl leading-[1.8] font-serif-display min-h-[400px] selection:bg-orange-100"
+              className="flex-1 px-14 py-12 outline-none prose prose-slate max-w-none text-gray-900 text-base leading-[1.8] font-serif-display min-h-[400px] selection:bg-orange-100"
             ></div>
 
             {entry.media.length > 0 && (
