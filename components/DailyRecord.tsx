@@ -114,15 +114,43 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
   // URL 正则
   const URL_REGEX = /https?:\/\/[^\s<>"']+/g;
 
-  // 生成链接卡片的内联 HTML
+  // 生成链接卡片的内联 HTML（紧凑样式，不显示图片，带删除按钮）
   const buildCardHtml = (preview: { url: string; title: string; description: string; image: string; siteName: string }) => {
     const escapedUrl = preview.url.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
     const escapedTitle = (preview.title || preview.url).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedDesc = (preview.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedSite = (preview.siteName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    return `<div class="link-card-wrapper" data-link-url="${escapedUrl}" contenteditable="false" style="margin:12px 0;max-width:520px;cursor:pointer;" onclick="window.open('${escapedUrl}','_blank')"><div style="display:flex;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fafafa;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">${preview.image ? `<div style="width:120px;min-height:90px;flex-shrink:0;background:#f3f4f6;"><img src="${preview.image}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentElement.style.display='none'" /></div>` : ''}<div style="padding:12px 16px;flex:1;overflow:hidden;"><div style="font-size:15px;font-weight:600;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827;">${escapedTitle}</div>${escapedDesc ? `<div style="font-size:13px;color:#6b7280;margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.5;">${escapedDesc}</div>` : ''}<div style="font-size:11px;color:#9ca3af;margin-top:6px;display:flex;align-items:center;gap:4px;">🔗 ${escapedSite}</div></div></div></div>`;
+    return `<div class="link-card-wrapper" data-link-url="${escapedUrl}" contenteditable="false" style="margin:8px 0;max-width:360px;position:relative;display:inline-block;vertical-align:top;"><div style="display:flex;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#fafafa;cursor:pointer;transition:box-shadow 0.2s;" onclick="window.open('${escapedUrl}','_blank')" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseout="this.style.boxShadow='none'"><div style="padding:8px 12px;flex:1;overflow:hidden;"><div style="font-size:13px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827;">${escapedTitle}</div>${escapedDesc ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4;">${escapedDesc}</div>` : ''}<div style="font-size:10px;color:#9ca3af;margin-top:3px;">🔗 ${escapedSite}</div></div></div><span class="link-card-delete" contenteditable="false" onclick="event.stopPropagation();this.parentElement.nextElementSibling && this.parentElement.nextElementSibling.tagName==='BR' && this.parentElement.nextElementSibling.remove();this.parentElement.remove();" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;line-height:18px;text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2);">×</span></div>`; 
   };
+
+  // 给卡片绑定 hover 显示/隐藏删除按钮
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const card = (e.target as HTMLElement).closest('.link-card-wrapper');
+      if (card) {
+        const del = card.querySelector('.link-card-delete') as HTMLElement;
+        if (del) del.style.display = 'flex';
+      }
+    };
+    const handleMouseOut = (e: MouseEvent) => {
+      const card = (e.target as HTMLElement).closest('.link-card-wrapper');
+      if (card) {
+        const del = card.querySelector('.link-card-delete') as HTMLElement;
+        if (del) del.style.display = 'none';
+      }
+    };
+
+    editor.addEventListener('mouseover', handleMouseOver);
+    editor.addEventListener('mouseout', handleMouseOut);
+    return () => {
+      editor.removeEventListener('mouseover', handleMouseOver);
+      editor.removeEventListener('mouseout', handleMouseOut);
+    };
+  }, [entry.date]);
 
   // 粘贴事件：检测链接并解析为卡片
   const handlePaste = async (e: React.ClipboardEvent) => {
@@ -148,7 +176,8 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
 
         try {
           const preview = await api.getLinkPreview(url);
-          const cardHtml = buildCardHtml(preview);
+          // 卡片后面加一个 <br> 和空段落，让用户可以继续输入
+          const cardHtml = buildCardHtml(preview) + '<br><p><br></p>';
 
           if (editorRef.current) {
             let content = editorRef.current.innerHTML;
