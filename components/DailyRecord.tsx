@@ -128,34 +128,46 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
   const handlePaste = async (e: React.ClipboardEvent) => {
     const clipboardText = e.clipboardData.getData('text/plain');
     // 检查粘贴内容是否包含 URL
-    const urls = clipboardText.match(URL_REGEX);
-    if (!urls || urls.length === 0) return;
+    const urlMatches = clipboardText.match(URL_REGEX);
+    if (!urlMatches || urlMatches.length === 0) return;
 
-    // 延迟等待 contentEditable 更新
+    // 去重
+    const urls = [...new Set(urlMatches)];
+
+    // 延迟等待 contentEditable 更新完成
     setTimeout(async () => {
       if (!editorRef.current) return;
       setLinkLoading(true);
 
       for (const url of urls) {
         // 跳过已经被解析为卡片的链接
-        if (editorRef.current.innerHTML.includes(`data-link-url="${url}"`)) continue;
+        if (editorRef.current.innerHTML.includes(`data-link-url=`)) {
+          const existCheck = editorRef.current.querySelector(`[data-link-url="${CSS.escape(url)}"]`);
+          if (existCheck) continue;
+        }
 
         try {
           const preview = await api.getLinkPreview(url);
           const cardHtml = buildCardHtml(preview);
 
           if (editorRef.current) {
-            // 在 innerHTML 中找到裸链接并替换为卡片
-            // 需要处理链接可能被浏览器自动包裹 <a> 标签的情况
             let content = editorRef.current.innerHTML;
-            // 先尝试替换被自动包裹的 <a> 标签
-            const aTagRegex = new RegExp(`<a[^>]*href=["']${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>[^<]*</a>`, 'gi');
-            if (aTagRegex.test(content)) {
-              content = content.replace(aTagRegex, cardHtml);
+            const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            let replaced = false;
+
+            // 情况1: 浏览器可能将 URL 自动包裹成 <a> 标签
+            const aTagRegex = new RegExp(`<a[^>]*href=["']${escapedUrl}["'][^>]*>[\\s\\S]*?</a>`, 'gi');
+            const newContent1 = content.replace(aTagRegex, () => {
+              replaced = true;
+              return cardHtml;
+            });
+            if (replaced) {
+              content = newContent1;
             } else {
-              // 替换裸文本链接
+              // 情况2: 裸文本链接
               content = content.replace(url, cardHtml);
             }
+
             editorRef.current.innerHTML = content;
             handleInsightSave();
           }
@@ -165,7 +177,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
       }
 
       setLinkLoading(false);
-    }, 300);
+    }, 500);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'audio') => {
