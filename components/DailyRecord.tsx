@@ -261,7 +261,29 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== entry.insight) {
-      editorRef.current.innerHTML = entry.insight || '';
+      let html = entry.insight || '';
+      
+      // 清理旧格式卡片中的图片区域（微信防盗链图片无法显示）
+      // 匹配旧的大卡片中包含 img 的图片容器 div
+      html = html.replace(/<div style="[^"]*width:120px[^"]*">[\s\S]*?<\/div>/gi, '');
+      
+      // 将旧的大卡片样式更新为紧凑样式
+      html = html.replace(/max-width:\s*520px/gi, 'max-width:360px');
+      html = html.replace(/padding:\s*12px\s+16px/gi, 'padding:8px 12px');
+      html = html.replace(/font-size:\s*15px/gi, 'font-size:13px');
+      html = html.replace(/border-radius:\s*12px/gi, 'border-radius:8px');
+      html = html.replace(/margin:\s*12px\s+0/gi, 'margin:8px 0');
+      html = html.replace(/min-height:\s*90px;?/gi, '');
+
+      editorRef.current.innerHTML = html;
+
+      // 确保编辑区末尾有一个可编辑的空段落
+      const lastChild = editorRef.current.lastElementChild;
+      if (!lastChild || lastChild.classList?.contains('link-card-wrapper') || lastChild.tagName === 'BR') {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        editorRef.current.appendChild(p);
+      }
     }
   }, [entry.date]);
 
