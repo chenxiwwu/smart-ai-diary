@@ -62,6 +62,7 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const formattedDate = new Date(entry.date).toLocaleDateString('zh-CN', {
@@ -108,6 +109,63 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
     if (editorRef.current) {
       onUpdate({ insight: editorRef.current.innerHTML });
     }
+  };
+
+  // URL 正则
+  const URL_REGEX = /https?:\/\/[^\s<>"']+/g;
+
+  // 生成链接卡片的内联 HTML
+  const buildCardHtml = (preview: { url: string; title: string; description: string; image: string; siteName: string }) => {
+    const escapedUrl = preview.url.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+    const escapedTitle = (preview.title || preview.url).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escapedDesc = (preview.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escapedSite = (preview.siteName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `<div class="link-card-wrapper" data-link-url="${escapedUrl}" contenteditable="false" style="margin:12px 0;max-width:520px;cursor:pointer;" onclick="window.open('${escapedUrl}','_blank')"><div style="display:flex;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fafafa;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">${preview.image ? `<div style="width:120px;min-height:90px;flex-shrink:0;background:#f3f4f6;"><img src="${preview.image}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentElement.style.display='none'" /></div>` : ''}<div style="padding:12px 16px;flex:1;overflow:hidden;"><div style="font-size:15px;font-weight:600;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827;">${escapedTitle}</div>${escapedDesc ? `<div style="font-size:13px;color:#6b7280;margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.5;">${escapedDesc}</div>` : ''}<div style="font-size:11px;color:#9ca3af;margin-top:6px;display:flex;align-items:center;gap:4px;">🔗 ${escapedSite}</div></div></div></div>`;
+  };
+
+  // 粘贴事件：检测链接并解析为卡片
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const clipboardText = e.clipboardData.getData('text/plain');
+    // 检查粘贴内容是否包含 URL
+    const urls = clipboardText.match(URL_REGEX);
+    if (!urls || urls.length === 0) return;
+
+    // 延迟等待 contentEditable 更新
+    setTimeout(async () => {
+      if (!editorRef.current) return;
+      setLinkLoading(true);
+
+      for (const url of urls) {
+        // 跳过已经被解析为卡片的链接
+        if (editorRef.current.innerHTML.includes(`data-link-url="${url}"`)) continue;
+
+        try {
+          const preview = await api.getLinkPreview(url);
+          const cardHtml = buildCardHtml(preview);
+
+          if (editorRef.current) {
+            // 在 innerHTML 中找到裸链接并替换为卡片
+            // 需要处理链接可能被浏览器自动包裹 <a> 标签的情况
+            let content = editorRef.current.innerHTML;
+            // 先尝试替换被自动包裹的 <a> 标签
+            const aTagRegex = new RegExp(`<a[^>]*href=["']${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>[^<]*</a>`, 'gi');
+            if (aTagRegex.test(content)) {
+              content = content.replace(aTagRegex, cardHtml);
+            } else {
+              // 替换裸文本链接
+              content = content.replace(url, cardHtml);
+            }
+            editorRef.current.innerHTML = content;
+            handleInsightSave();
+          }
+        } catch (err) {
+          console.error('Link preview failed:', err);
+        }
+      }
+
+      setLinkLoading(false);
+    }, 300);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'audio') => {
@@ -374,8 +432,16 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
               ref={editorRef}
               contentEditable
               onBlur={handleInsightSave}
+              onPaste={handlePaste}
               className="flex-1 px-14 py-12 outline-none prose prose-slate max-w-none text-gray-900 text-base leading-[1.8] font-serif-display min-h-[400px] selection:bg-orange-100"
             ></div>
+
+            {linkLoading && (
+              <div className="px-14 py-3 border-t border-orange-50 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs text-orange-600 font-medium">正在解析链接...</span>
+              </div>
+            )}
 
             {entry.media.length > 0 && (
               <div className="px-14 py-10 border-t border-orange-50 bg-orange-50/5">

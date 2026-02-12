@@ -1,6 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 // 后端服务器根路径（用于拼接 /uploads/xxx 等相对路径）
-export const SERVER_BASE = API_BASE.replace(/\/api\/?$/, '');
+export const SERVER_BASE = API_BASE.replace(/\/api\/?$/, '') || '';
 
 export interface User {
   id: string;
@@ -174,6 +174,15 @@ class ApiService {
     }
 
     return response.json();
+  }
+}
+
+  // Link Preview
+  async getLinkPreview(url: string): Promise<{ url: string; title: string; description: string; image: string; siteName: string }> {
+    return this.request<{ url: string; title: string; description: string; image: string; siteName: string }>('/link-preview', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
   }
 }
 
