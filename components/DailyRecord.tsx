@@ -114,14 +114,14 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
   // URL 正则
   const URL_REGEX = /https?:\/\/[^\s<>"']+/g;
 
-  // 生成链接卡片的内联 HTML（紧凑样式，不显示图片，带删除按钮）
+  // 生成链接卡片的内联 HTML（紧凑样式，独占一行，带删除按钮）
   const buildCardHtml = (preview: { url: string; title: string; description: string; image: string; siteName: string }) => {
     const escapedUrl = preview.url.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
     const escapedTitle = (preview.title || preview.url).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedDesc = (preview.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedSite = (preview.siteName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    return `<div class="link-card-wrapper" data-link-url="${escapedUrl}" contenteditable="false" style="margin:8px 0;max-width:360px;position:relative;display:inline-block;vertical-align:top;"><div style="display:flex;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#fafafa;cursor:pointer;transition:box-shadow 0.2s;" onclick="window.open('${escapedUrl}','_blank')" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseout="this.style.boxShadow='none'"><div style="padding:8px 12px;flex:1;overflow:hidden;"><div style="font-size:13px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827;">${escapedTitle}</div>${escapedDesc ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4;">${escapedDesc}</div>` : ''}<div style="font-size:10px;color:#9ca3af;margin-top:3px;">🔗 ${escapedSite}</div></div></div><span class="link-card-delete" contenteditable="false" onclick="event.stopPropagation();this.parentElement.nextElementSibling && this.parentElement.nextElementSibling.tagName==='BR' && this.parentElement.nextElementSibling.remove();this.parentElement.remove();" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;line-height:18px;text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2);">×</span></div>`; 
+    return `<div class="link-card-wrapper" data-link-url="${escapedUrl}" contenteditable="false" style="margin:8px 0;max-width:340px;position:relative;display:block;"><div style="display:flex;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#fafafa;cursor:pointer;transition:box-shadow 0.2s;" onclick="window.open('${escapedUrl}','_blank')" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'" onmouseout="this.style.boxShadow='none'"><div style="padding:8px 12px;flex:1;overflow:hidden;"><div style="font-size:13px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827;">${escapedTitle}</div>${escapedDesc ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4;">${escapedDesc}</div>` : ''}<div style="font-size:10px;color:#9ca3af;margin-top:3px;">🔗 ${escapedSite}</div></div></div><span class="link-card-delete" contenteditable="false" onclick="event.stopPropagation();var card=this.parentElement;card.parentElement&&card.remove();" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;line-height:18px;text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.2);z-index:10;">×</span></div>`; 
   };
 
   // 给卡片绑定 hover 显示/隐藏删除按钮
@@ -176,8 +176,8 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
 
         try {
           const preview = await api.getLinkPreview(url);
-          // 卡片后面加一个 <br> 和空段落，让用户可以继续输入
-          const cardHtml = buildCardHtml(preview) + '<br><p><br></p>';
+          // 卡片前后都加空段落，确保用户可以在卡片前后输入文字
+          const cardHtml = '<p><br></p>' + buildCardHtml(preview) + '<p><br></p>';
 
           if (editorRef.current) {
             let content = editorRef.current.innerHTML;
@@ -264,18 +264,36 @@ const DailyRecord: React.FC<DailyRecordProps> = ({ entry, onUpdate }) => {
       let html = entry.insight || '';
       
       // 清理旧格式卡片中的图片区域（微信防盗链图片无法显示）
-      // 匹配旧的大卡片中包含 img 的图片容器 div
       html = html.replace(/<div style="[^"]*width:120px[^"]*">[\s\S]*?<\/div>/gi, '');
       
       // 将旧的大卡片样式更新为紧凑样式
-      html = html.replace(/max-width:\s*520px/gi, 'max-width:360px');
+      html = html.replace(/max-width:\s*520px/gi, 'max-width:340px');
+      html = html.replace(/max-width:\s*360px/gi, 'max-width:340px');
       html = html.replace(/padding:\s*12px\s+16px/gi, 'padding:8px 12px');
       html = html.replace(/font-size:\s*15px/gi, 'font-size:13px');
       html = html.replace(/border-radius:\s*12px/gi, 'border-radius:8px');
       html = html.replace(/margin:\s*12px\s+0/gi, 'margin:8px 0');
       html = html.replace(/min-height:\s*90px;?/gi, '');
+      html = html.replace(/display:\s*inline-block;?\s*vertical-align:\s*top;?/gi, 'display:block;');
 
       editorRef.current.innerHTML = html;
+
+      // 确保每个卡片前后都有可编辑段落
+      const cards = editorRef.current.querySelectorAll('.link-card-wrapper');
+      cards.forEach(card => {
+        // 卡片前没有可编辑元素时添加
+        if (!card.previousElementSibling || card.previousElementSibling.classList?.contains('link-card-wrapper')) {
+          const p = document.createElement('p');
+          p.innerHTML = '<br>';
+          card.parentElement?.insertBefore(p, card);
+        }
+        // 卡片后没有可编辑元素时添加
+        if (!card.nextElementSibling || card.nextElementSibling.classList?.contains('link-card-wrapper')) {
+          const p = document.createElement('p');
+          p.innerHTML = '<br>';
+          card.parentElement?.insertBefore(p, card.nextSibling);
+        }
+      });
 
       // 确保编辑区末尾有一个可编辑的空段落
       const lastChild = editorRef.current.lastElementChild;
